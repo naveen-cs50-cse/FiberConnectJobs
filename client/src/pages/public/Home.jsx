@@ -91,7 +91,7 @@ export default function Home() {
       </div>
 
       {/* About Section */}
-      <div className="bg-gray-50 py-24 sm:py-32">
+      <div id="about" className="bg-gray-50 py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0">
             <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">About Fiber Connect</h2>
@@ -103,7 +103,7 @@ export default function Home() {
       </div>
 
       {/* Pricing Section (TBD) */}
-      <div className="py-24 sm:py-32">
+      <div id="pricing" className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-6 lg:px-8 text-center">
           <div className="mx-auto max-w-2xl">
             <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Simple, transparent pricing</h2>

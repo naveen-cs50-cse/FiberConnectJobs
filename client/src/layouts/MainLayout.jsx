@@ -12,9 +12,9 @@ export default function MainLayout() {
               </Link>
             </div>
             <nav className="hidden md:flex space-x-8">
-              <Link to="/features" className="text-gray-600 hover:text-gray-900">Features</Link>
-              <Link to="/pricing" className="text-gray-600 hover:text-gray-900">Pricing</Link>
-              <Link to="/about" className="text-gray-600 hover:text-gray-900">About</Link>
+              <a href="/#features" className="text-gray-600 hover:text-gray-900">Features</a>
+              <a href="/#pricing" className="text-gray-600 hover:text-gray-900">Pricing</a>
+              <a href="/#about" className="text-gray-600 hover:text-gray-900">About</a>
             </nav>
             <div className="flex items-center space-x-4">
               <Link to="/login" className="text-gray-600 hover:text-gray-900 font-medium">
