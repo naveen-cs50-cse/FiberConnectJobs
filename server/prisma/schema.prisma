@@ -1,0 +1,418 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  platformRole   String    @default("USER") // SUPER_ADMIN, ADMIN, USER
+  isVerified     Boolean   @default(false)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  settings             UserSettings?
+  technicianProfile    TechnicianProfile?
+  organizationMemberships OrganizationMembership[]
+  crewMemberships      CrewMembership[]
+  reviewsWritten       Review[] @relation("ReviewAuthor")
+  reviewsReceived      Review[] @relation("ReviewSubject")
+  messages             Message[]
+  sessions             UserSession[]
+  notifications        Notification[]
+  verificationRequests VerificationRequest[]
+  auditLogs            AuditLog[]
+}
+
+model UserSession {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserSettings {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  emailNotifications    Boolean  @default(true)
+  pushNotifications     Boolean  @default(true)
+  smsNotifications      Boolean  @default(false)
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Technician Profile & Skills
+model TechnicianProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  bio              String?
+  yearsOfExperience Int     @default(0)
+  expectedHourlyRate Float? 
+  profileImageUrl  String?
+  visibility       String   @default("PUBLIC") // PUBLIC, PRIVATE
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills           TechnicianSkill[]
+  certifications   Certification[]
+  workHistory      WorkHistory[]
+  availabilities   Availability[]
+  applications     Application[]
+  assignments      Assignment[]
+  paymentRecords   PaymentRecord[]
+}
+
+model Skill {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  category    String
+  description String?
+  technicianSkills TechnicianSkill[]
+  jobSkills   JobSkill[]
+}
+
+model TechnicianSkill {
+  id                  String   @id @default(uuid())
+  technicianProfileId String
+  skillId             String
+  yearsExperience     Int      @default(0)
+
+  technicianProfile   TechnicianProfile @relation(fields: [technicianProfileId], references: [id], onDelete: Cascade)
+  skill               Skill             @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([technicianProfileId, skillId])
+}
+
+model Certification {
+  id                  String   @id @default(uuid())
+  technicianProfileId String
+  name                String
+  issuer              String
+  issueDate           DateTime
+  expiryDate          DateTime?
+  documentUrl         String?
+  status              String   @default("PENDING_VERIFICATION") // VERIFIED, PENDING_VERIFICATION, REJECTED
+
+  technicianProfile   TechnicianProfile @relation(fields: [technicianProfileId], references: [id], onDelete: Cascade)
+}
+
+model WorkHistory {
+  id                  String   @id @default(uuid())
+  technicianProfileId String
+  title               String
+  company             String
+  startDate           DateTime
+  endDate             DateTime?
+  description         String?
+
+  technicianProfile   TechnicianProfile @relation(fields: [technicianProfileId], references: [id], onDelete: Cascade)
+}
+
+model Availability {
+  id                  String   @id @default(uuid())
+  technicianProfileId String?
+  crewId              String?
+  startDate           DateTime
+  endDate             DateTime
+  status              String   @default("AVAILABLE") // AVAILABLE, BUSY
+
+  technicianProfile   TechnicianProfile? @relation(fields: [technicianProfileId], references: [id], onDelete: Cascade)
+  crew                Crew?              @relation(fields: [crewId], references: [id], onDelete: Cascade)
+}
+
+// Organization & Teams
+model Organization {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  industry       String?
+  website        String?
+  logoUrl        String?
+  status         String   @default("PENDING_VERIFICATION") // VERIFIED, PENDING_VERIFICATION
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  memberships    OrganizationMembership[]
+  jobs           Job[]
+  paymentRecords PaymentRecord[]
+  auditLogs      AuditLog[]
+  settings       OrganizationSettings?
+  invitations    OrganizationInvitation[]
+}
+
+model OrganizationSettings {
+  id             String   @id @default(uuid())
+  organizationId String   @unique
+  billingPlan    String   @default("FREE")
+  
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model OrganizationMembership {
+  id             String   @id @default(uuid())
+  userId         String
+  organizationId String
+  role           String   @default("PROJECT_MANAGER") // OWNER, ADMIN, RECRUITER, PROJECT_MANAGER
+  joinedAt       DateTime @default(now())
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+}
+
+model OrganizationInvitation {
+  id             String   @id @default(uuid())
+  organizationId String
+  email          String
+  role           String   @default("PROJECT_MANAGER") // OWNER, ADMIN, RECRUITER, PROJECT_MANAGER
+  token          String   @unique
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// Jobs & Hiring
+model Job {
+  id             String   @id @default(uuid())
+  organizationId String
+  title          String
+  description    String
+  workCategory   String
+  workersNeeded  Int      @default(1)
+  requiresCrew   Boolean  @default(false)
+  location       String
+  latitude       Float?
+  longitude      Float?
+  startDate      DateTime
+  endDate        DateTime?
+  compensationModel String // HOURLY, FIXED
+  compensationAmount Float
+  status         String   @default("DRAFT") // DRAFT, PUBLISHED, CANCELLED, ARCHIVED, COMPLETED
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  skills         JobSkill[]
+  applications   Application[]
+  assignments    Assignment[]
+}
+
+model JobSkill {
+  id        String @id @default(uuid())
+  jobId     String
+  skillId   String
+
+  job       Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skill     Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, skillId])
+}
+
+model Application {
+  id                  String   @id @default(uuid())
+  jobId               String
+  technicianProfileId String?
+  crewId              String?
+  status              String   @default("SUBMITTED") // DRAFT, SUBMITTED, UNDER_REVIEW, SHORTLISTED, ACCEPTED, REJECTED, WITHDRAWN
+  coverLetter         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  job                 Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  technicianProfile   TechnicianProfile? @relation(fields: [technicianProfileId], references: [id], onDelete: Cascade)
+  crew                Crew?              @relation(fields: [crewId], references: [id], onDelete: Cascade)
+  history             ApplicationHistory[]
+}
+
+model ApplicationHistory {
+  id            String   @id @default(uuid())
+  applicationId String
+  status        String
+  note          String?
+  createdAt     DateTime @default(now())
+
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+}
+
+// Crews
+model Crew {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     CrewMembership[]
+  availabilities Availability[]
+  applications Application[]
+  assignments  Assignment[]
+}
+
+model CrewMembership {
+  id        String   @id @default(uuid())
+  crewId    String
+  userId    String
+  role      String   @default("MEMBER") // LEADER, MEMBER
+  joinedAt  DateTime @default(now())
+
+  crew      Crew     @relation(fields: [crewId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([crewId, userId])
+}
+
+// Assignments & Execution
+model Assignment {
+  id                  String   @id @default(uuid())
+  jobId               String
+  technicianProfileId String?
+  crewId              String?
+  status              String   @default("PENDING") // PENDING, ACCEPTED, IN_PROGRESS, PAUSED, SUBMITTED_FOR_REVIEW, COMPLETED, CANCELLED
+  agreedCompensation  Float
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  job                 Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  technicianProfile   TechnicianProfile? @relation(fields: [technicianProfileId], references: [id], onDelete: Cascade)
+  crew                Crew?              @relation(fields: [crewId], references: [id], onDelete: Cascade)
+  notes               AssignmentNote[]
+  evidence            Evidence[]
+  history             AssignmentHistory[]
+  paymentRecords      PaymentRecord[]
+}
+
+model AssignmentNote {
+  id           String   @id @default(uuid())
+  assignmentId String
+  content      String
+  authorId     String
+  createdAt    DateTime @default(now())
+
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+}
+
+model AssignmentHistory {
+  id           String   @id @default(uuid())
+  assignmentId String
+  status       String
+  note         String?
+  createdAt    DateTime @default(now())
+
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+}
+
+// Evidence & Reviews
+model Evidence {
+  id           String   @id @default(uuid())
+  assignmentId String
+  description  String?
+  fileUrl      String
+  status       String   @default("SUBMITTED") // SUBMITTED, APPROVED, REJECTED, CORRECTION_REQUESTED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  reviews      EvidenceReview[]
+}
+
+model EvidenceReview {
+  id         String   @id @default(uuid())
+  evidenceId String
+  reviewerId String
+  status     String
+  comments   String?
+  createdAt  DateTime @default(now())
+
+  evidence   Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+}
+
+// Payments
+model PaymentRecord {
+  id                  String   @id @default(uuid())
+  assignmentId        String
+  organizationId      String
+  technicianProfileId String?
+  amount              Float
+  status              String   @default("PENDING") // PENDING, PROCESSING, PAID, FAILED, DISPUTED
+  referenceId         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  assignment          Assignment         @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  technicianProfile   TechnicianProfile? @relation(fields: [technicianProfileId], references: [id], onDelete: Cascade)
+}
+
+// Ratings & Reviews
+model Review {
+  id           String   @id @default(uuid())
+  authorId     String
+  subjectId    String
+  rating       Int
+  comment      String?
+  createdAt    DateTime @default(now())
+
+  author       User     @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  subject      User     @relation("ReviewSubject", fields: [subjectId], references: [id], onDelete: Cascade)
+}
+
+// Communication & Notification
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String
+  createdAt      DateTime @default(now())
+  isRead         Boolean  @default(false)
+
+  sender         User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  content   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Admin & Audit
+model VerificationRequest {
+  id        String   @id @default(uuid())
+  userId    String
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  comments  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  userId         String?
+  organizationId String?
+  action         String
+  resource       String
+  resourceId     String?
+  details        String?
+  createdAt      DateTime @default(now())
+
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+}
